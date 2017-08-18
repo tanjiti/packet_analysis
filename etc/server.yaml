@@ -1,0 +1,60 @@
+
+stream_handler:
+ is_handle_tcp: 1 #是否处理tcp数据包
+ is_handle_udp: 1 #是否处理udp数据包
+ is_handle_ip: 1 #是否处理ip数据包
+
+ device_enable: 1 #是否从网卡读取数据包
+ device: en0 #网络接口
+
+ pcap_file_enable: 0 #是否从pcap读取数据包
+ pcap_file: data/pcap_pub/cve/cve-2016-4971.pcap
+
+ bpf_filter: tcp or udp #包过滤条件，目前只支持tcp bpf/udp
+
+ dst_tcp_port_filter: [21, 3389, 27017, 6379, 5432, 22, 3306, 25,80,8080,8118,91] #按目标端口进行过滤,tcp包有会话重组
+ dst_tcp_ip_filter: [] #按TCP目标IP进行过滤
+ src_tcp_port_filter: [] #按TCP源端口进行过滤
+ src_tcp_ip_filter: [] #按TCP源IP进行过滤
+
+ udp_port_filter: [53] #53 按UDP端口进行过滤
+ udp_ip_filter: [] #按UDP IP进行过滤
+
+
+ data_level: 2  #输出数据信息的详细程度，当大于1时，支持hex与ASCII显示
+ data_stream_direct: 2 #输出单向数据流，或双向数据流，仅tcp数据包有效
+
+ std_output_enable: 1 #捕获数据包是否标准输出
+
+ file_output_enable: 1 #捕获数据包是否文件输出
+ file_output_path: data/tcpudpdata/real.pcap #文件输出的存储路径
+
+ sqlite3_output_enable: 1 #是否将ip数据包统计信息存储到sqlite3
+ sqlite3_output_path: data/ip_packet/ip_statistic.db #sqlite3数据库路径
+ sqlite3_output_schema: data/ip_packet/ip_statistic.sql #sqlite3数据库模式
+ sqlite3_renew: 0 #是否清空数据库，重新写入
+
+ protocol_parse_conf: #根据端口号启用协议解析模块
+  ssh: [22]
+  ftp: [21]
+  smtp: [25,465]
+  mysql: [3306]
+  pgsql: [5432]
+  redis: [6379]
+  mongodb: [27017]
+  rdp: [3389]
+  http: [80,8080,8118,91]
+  #mssql: [1433]
+  #oracle: [1521]
+  #smb: [445]
+  #oracle: [1521]
+  #memcache: [11211]
+  #vnc: [5900]
+  #telnet: [23]
+  #cassandra: [9042]
+  #pop3: [110]
+  #imap: [143,993]
+  #tftp: [69] #UDP
+  dns: [53] #UDP
+
+

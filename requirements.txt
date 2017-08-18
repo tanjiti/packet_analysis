@@ -1,0 +1,7 @@
+pynids #https://github.com/MITRECND/pynids.git
+dpkt #http://dpkt.readthedocs.io/en/latest/index.html
+PyYAML #http://pyyaml.org/wiki/PyYAMLDocumentation
+dnslib
+wget
+requests
+sqlite
