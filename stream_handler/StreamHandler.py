@@ -11,6 +11,7 @@ import os
 import socket
 import struct
 import traceback
+from collections import OrderedDict
 
 import lib.mills as mills
 import lib.networktools as networktools
@@ -505,7 +506,13 @@ class StreamHandler(object):
             ipdst = socket.inet_ntoa(iphdr[9])
 
             ipihl = iphdr[0] & 0xF
-            ipihl *= 4
+            ipihl *= 4  # ip header size
+
+            # ipversion = iphdr[0] >> 4
+            # iptos = iphdr[1]
+            # iptotallen = iphdr[2]
+            # ipid = iphdr[3]
+            # ipttl = iphdr[5]
 
             if ipproto == 6 or ipproto == 17:
                 tcpudphdr = struct.unpack('!HH', ip[ipihl:ipihl + 4])
@@ -540,13 +547,45 @@ class StreamHandler(object):
                 else:
                     direct = 3  # other
 
-                result = direct, \
-                         ts, \
-                         ipproto, ipsrc, ipdst, \
-                         portsrc, portdst, \
-                         len_of_ip, \
-                         src_ip_geo, dst_ip_geo, \
-                         src_port_service, dst_port_service
+                # tcp
+                if ipproto == 6:
+                    tcphdr = struct.unpack('!LLBBHHH', ip[ipihl + 4:ipihl + 20])
+                    tcpseq = tcphdr[0]
+                    tcpack = tcphdr[1]
+
+                    tcpoffset = tcphdr[2] >> 4
+                    tcphl = tcpoffset * 4  # tcp header size
+
+                    tcpflags = tcphdr[3]
+                    tcpwindow = tcphdr[4]
+
+                    tcpflagsstr = convert(tcpflags)
+                    tcpflagsstr = ",".join(tcpflagsstr)
+
+                    len_of_data = len_of_ip - ipihl - tcphl
+                    # data=ip[ipihl+tcphl:]
+
+                    result = direct, \
+                             ts, \
+                             ipproto, ipsrc, ipdst, \
+                             portsrc, portdst, \
+                             len_of_ip, \
+                             src_ip_geo, dst_ip_geo, \
+                             src_port_service, dst_port_service, tcpseq, tcpack, tcpflagsstr, tcpwindow, \
+                             len_of_data
+
+                else:
+                    len_of_data = len_of_ip - ipihl - 8  # UDP Header:8
+                    # data=ip[ipihl+8:]
+
+                    result = direct, \
+                             ts, \
+                             ipproto, ipsrc, ipdst, \
+                             portsrc, portdst, \
+                             len_of_ip, \
+                             src_ip_geo, dst_ip_geo, \
+                             src_port_service, dst_port_service, \
+                             len_of_data
 
                 self.__outputIP(result)
         except Exception as e:
@@ -578,35 +617,69 @@ class StreamHandler(object):
         Returns:
 
         """
-        (direct,
-         ts,
-         ip_protocol_type,
-         src_ip, dst_ip,
-         src_port, dst_port,
-         length,
-         src_ip_geo, dst_ip_geo,
-         src_port_service, dst_port_service) = ip_statistic_tuple
-        ts = mills.timestamp2datetime(ts)
-        if ip_protocol_type == 6:
-            ip_protocol_type = "TCP"
-        else:
-            ip_protocol_type = "UDP"
+        if len(ip_statistic_tuple) == 13:
 
-        result = "{direct}\t{ts}\t{ip_protocol_type}\t{src_ip}:{src_port}({src_ip_geo})({src_port_service})" \
-                 "\t{dst_ip}:{dst_port}({dst_ip_geo})({dst_port_service})\t{length}".format(
-            direct=STREAM_DIRECT.get(direct, direct),
-            ts=ts,
-            ip_protocol_type=ip_protocol_type,
-            src_ip=src_ip,
-            src_port=src_port,
-            dst_ip=dst_ip,
-            dst_port=dst_port,
-            length=length,
-            src_ip_geo=src_ip_geo,
-            dst_ip_geo=dst_ip_geo,
-            src_port_service=src_port_service,
-            dst_port_service=dst_port_service
-        )
+            (direct, ts, ip_protocol_type, src_ip, dst_ip, src_port, dst_port, length,
+             src_ip_geo, dst_ip_geo, src_port_service, dst_port_service, len_of_data) = ip_statistic_tuple
+            ts = mills.timestamp2datetime(ts)
+            ip_protocol_type = "UDP"
+            result = "{direct}\t{ts}\t{ip_protocol_type}\t{src_ip}:{src_port}({src_ip_geo})({src_port_service})" \
+                     "\t{dst_ip}:{dst_port}({dst_ip_geo})({dst_port_service})\tPACKET_LENGTH={length}" \
+                     "\tDATA_LENGTH={len_of_data}".format(
+                direct=STREAM_DIRECT.get(direct, direct),
+                ts=ts,
+                ip_protocol_type=ip_protocol_type,
+                src_ip=src_ip,
+                src_port=src_port,
+                dst_ip=dst_ip,
+                dst_port=dst_port,
+                length=length,
+                src_ip_geo=src_ip_geo,
+                dst_ip_geo=dst_ip_geo,
+                src_port_service=src_port_service,
+                dst_port_service=dst_port_service,
+                len_of_data=len_of_data
+            )
+
+
+        else:
+
+            (direct,
+             ts,
+             ip_protocol_type,
+             src_ip, dst_ip,
+             src_port, dst_port,
+             length,
+             src_ip_geo, dst_ip_geo,
+             src_port_service, dst_port_service,
+             tcpseq, tcpack, tcpflagsstr, tcpwindow, len_of_data) = ip_statistic_tuple
+
+            ip_protocol_type = "TCP"
+
+            ts = mills.timestamp2datetime(ts)
+            result = "{direct}\t{ts}\t{ip_protocol_type}\t{src_ip}:{src_port}({src_ip_geo})({src_port_service})" \
+                     "\t{dst_ip}:{dst_port}({dst_ip_geo})({dst_port_service})\tPACKET_LENGTH={length}" \
+                     "\tDATA_LENGTH={len_of_data}" \
+                     "\tSEQ={tcpseq}\tACK={tcpack}\tFLAGS={tcpflagsstr}\tWINDOW={tcpwindow}".format(
+                direct=STREAM_DIRECT.get(direct, direct),
+                ts=ts,
+                ip_protocol_type=ip_protocol_type,
+                src_ip=src_ip,
+                src_port=src_port,
+                dst_ip=dst_ip,
+                dst_port=dst_port,
+                length=length,
+                src_ip_geo=src_ip_geo,
+                dst_ip_geo=dst_ip_geo,
+                src_port_service=src_port_service,
+                dst_port_service=dst_port_service,
+                tcpseq=tcpseq,
+                tcpack=tcpack,
+                tcpflagsstr=tcpflagsstr,
+                tcpwindow=tcpwindow,
+                len_of_data=len_of_data
+            )
+
         print result
 
     def __output_sqlite3(self, ip_statistic_tuple):
@@ -639,6 +712,28 @@ class StreamHandler(object):
                   "packet_length",
                   "src_ip_geo", "dst_ip_geo",
                   "src_port_service", "dst_port_service"]
-        data_dict = dict(zip(fields, ip_statistic_tuple))
+        data_dict = dict(zip(fields, ip_statistic_tuple[0:12]))
 
         so.replaceData2SQLite3(op='insert', tablename='ip_statistic_tuple', fields=fields, data_dict=data_dict)
+
+
+TCP_FLAG_DICT = OrderedDict(
+    [("128", "CWR"), ("64", "ECE"), ("32", "URG"), ("16", "ACK"), ("8", "PSH"), ("4", "RST"), ("2", "SYN"),
+     ("1", "FIN")])
+
+
+def convert(dec, flags=None):
+    """
+    convert tcp flags number to flags String array
+    :param dec:
+    :param flags:
+    :return:
+    """
+    final = []
+    if flags is None:
+        flags = TCP_FLAG_DICT
+    for i in flags.keys():
+        if (dec >= int(i)):
+            dec = dec - int(i)
+            final.append(flags[i])
+    return final
